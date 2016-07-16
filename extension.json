@@ -21,6 +21,9 @@
 		"ApiGitSynchro": "ApiGitSynchro.php"
 	},
 	"Hooks": {
+		"ArticlePurge": [
+			"GitSynchro::onArticlePurge"
+		],
 		"PageContentSaveComplete": [
 			"GitSynchro::onPageContentSaveComplete"
 		]

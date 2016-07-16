@@ -2,6 +2,18 @@
 
 class GitSynchro {
 
+	static function onArticlePurge( &$article ) {
+
+		global $wgGitSynchroBaseGitDir;
+
+		wfDebugLog( 'gitsynchro', $wgGitSynchroBaseGitDir );
+		self::initBaseDir();
+
+		self::createGitDirectory( $article->getTitle() );
+
+		self::populateGitDirectory( $article->getTitle() );
+	}
+
 	static function onPageContentSaveComplete( $wikiPage, $user, $content, $summary, $isMinor, $isWatch, $section, $flags, $revision, $status, $baseRevId ) {
 
 		global $wgGitSynchroBaseGitDir;
@@ -25,12 +37,18 @@ class GitSynchro {
 	static private function createGitDirectory( Title $title ) {
 
 		global $wgGitSynchroBaseGitDir;
+		$retval = null;
 
 		self::initBaseDir();
 
-		if( is_dir( $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ) )
-			wfShellExec( [ 'rm', $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ] );
-
+		if( is_dir( $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ) ) {
+			
+			wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'branch' ], $retval );
+			if( !$retval ) return;
+			wfShellExec( [ 'rm', '-rf', $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ] );
+		}
+		
+		mkdir( $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 0777, true );
 		wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'init', '--bare' ] );
 	}
 
@@ -44,11 +62,20 @@ class GitSynchro {
 		$revisions = [];
 		$lastRev = Revision::newFromTitle( $title );
 
-		while( $lastRev ) {
+		# Check if an 
+		$lastRecordedRevId = wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid' ] );
+		ob_start();
+		var_dump($lastRecordedRevId);
+		$a = ob_get_clean();
+		wfDebugLog( 'gitsynchro', 'last recorded revid = '.$a );
+		while( $lastRev && $lastRev->getId() != $lastRecordedRevId ) {
 
 			$revisions[] = $lastRev;
 			$lastRev = $lastRev->getPrevious();
 		}
+		wfDebugLog( 'gitsynchro', 'new revisions = '.count($revisions) );
+		if( count( $revisions ) == 0 )
+			return true;
 
 		# Write Git commits
 		mkdir( '/tmp/igIlsH5h', 0777 );
@@ -65,7 +92,9 @@ class GitSynchro {
 			$user = $revision->getUserText();
 			$email = $user . '@' . preg_replace( '/^(https?:)?\/\//', '', $wgServer );
 			$timestamp = wfTimestamp( TS_ISO_8601, $revision->getTimestamp() );
-			$commitMsg = $comment . "\n\nID: " . $revision->getId() . "\nSHA1: " . $revision->getSha1();
+			$commitMsg = $comment;
+			#$commitMsg = $comment . "\n\nID: " . $revision->getId() . "\nSHA1: " . $revision->getSha1();
+			wfDebugLog( 'gitsynchro', 'add revision = '.$revision->getId() );
 
 			file_put_contents( '/tmp/igIlsH5h/' . $title->getPrefixedText(), $text );
 			file_put_contents( '/tmp/igIlsH5h/.git/COMMIT_EDITMSG', $commitMsg );
@@ -73,7 +102,11 @@ class GitSynchro {
 			wfShellExec( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'add', $title->getPrefixedText() ] );
 			wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'commit', '--file=/tmp/igIlsH5h/.git/COMMIT_EDITMSG' ], $retval, [ 'GIT_AUTHOR_NAME' => $user, 'GIT_COMMITTER_NAME' => $user, 'GIT_AUTHOR_EMAIL' => $email, 'GIT_COMMITTER_EMAIL' => $email, 'GIT_AUTHOR_DATE' => $timestamp, 'GIT_COMMITTER_DATE' => $timestamp ] );
 		}
+		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
+		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
 		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', 'origin', 'master' ] );
+		wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid', $revision->getId() ] );
 		wfShellExec( [ 'rm', '-rf', '/tmp/igIlsH5h' ] );
+		return true;
 	}
 }
