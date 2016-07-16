@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * GitSynchro
+ * @author Sébastien Beyou <seb35@seb35.fr>
+ * @license LGPL-2.0+
+ */
+
 class GitSynchro {
 
 	static function onArticlePurge( &$article ) {
