@@ -1,0 +1,32 @@
+{
+	"name": "GitSynchro",
+	"version": "0.1",
+	"author": [
+		"Seb35"
+	],
+	"url": "https://www.mediawiki.org/wiki/Extension:GitSynchro",
+	"descriptionmsg": "gitsynchro-desc",
+	"license-name": "LGPL-2.0+",
+	"type": "other",
+	"config": {
+		"GitSynchroBaseGitDir": "/srv/git/wikis/mediawiki-master"
+	},
+	"MessagesDirs": {
+		"GitSynchro": [
+			"i18n"
+		]
+	},
+	"AutoloadClasses": {
+		"GitSynchro": "GitSynchro.php",
+		"ApiGitSynchro": "ApiGitSynchro.php"
+	},
+	"Hooks": {
+		"PageContentSaveComplete": [
+			"GitSynchro::onPageContentSaveComplete"
+		]
+	},
+	"APIModules": {
+		"gitsynchro": "ApiGitSynchro"
+	},
+	"manifest_version": 1
+}

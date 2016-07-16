@@ -1,0 +1,11 @@
+{
+	"@metadata": {
+		"authors": [
+			"Sébastien Beyou"
+		]
+	},
+	"gitsynchro-desc": "Accès aux pages et modification via Git.",
+	"gitsynchro-no-text-content-type": "(pas une page texte)",
+	"gitsynchro-no-comment": "(pas de commentaire)",
+	"gitsynchro-api-desc": "Authentifie l’utilisateur et retourne l’autorisation de lecture/écriture sur une page donnée avec les statuts HTTP 401/403."
+}
