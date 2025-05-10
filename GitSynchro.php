@@ -6,6 +6,10 @@
  * @license LGPL-2.0+
  */
 
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Revision\SlotRecord;
+use MediaWiki\Title\Title;
+
 class GitSynchro {
 
 	static function onArticlePurge( &$article ) {
@@ -62,11 +66,14 @@ class GitSynchro {
 
 		global $wgGitSynchroBaseGitDir, $wgServer;
 
+		$services = MediaWikiServices::getInstance();
+		$revisionLookup = $services->getRevisionLookup();
+
 		$retval = null;
 
 		# Collect revisions
 		$revisions = [];
-		$lastRev = Revision::newFromTitle( $title );
+		$lastRev = $revisionLookup->getRevisionByTitle( $title );
 
 		# Check if an 
 		$lastRecordedRevId = wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid' ] );
@@ -77,7 +84,7 @@ class GitSynchro {
 		while( $lastRev && $lastRev->getId() != $lastRecordedRevId ) {
 
 			$revisions[] = $lastRev;
-			$lastRev = $lastRev->getPrevious();
+			$lastRev = $revisionLookup->getPreviousRevision( $lastRev );
 		}
 		wfDebugLog( 'gitsynchro', 'new revisions = '.count($revisions) );
 		if( count( $revisions ) == 0 )
@@ -88,14 +95,15 @@ class GitSynchro {
 		wfShellExec( [ 'git', 'clone', '--quiet', $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), '/tmp/igIlsH5h' ] );
 		foreach( array_reverse( $revisions ) as $revision ) {
 
-			$content = $revision->getContent();
+			$content = $revision->getContent( SlotRecord::MAIN );
 			if( ! $content instanceof TextContent )
 				$text = wfMessage( 'gitsynchro-no-text-content-type' )->inContentLanguage()->text();
 			else
 				$text = $content->getNativeData();
 			
 			$comment = $revision->getComment() ? $revision->getComment() : wfMessage( 'gitsynchro-no-comment' )->inContentLanguage()->text();
-			$user = $revision->getUserText();
+			$user = $revision->getUser();
+			$user = $user ? $user->getName() : '';
 			$email = $user . '@' . preg_replace( '/^(https?:)?\/\//', '', $wgServer );
 			$timestamp = wfTimestamp( TS_ISO_8601, $revision->getTimestamp() );
 			$commitMsg = $comment;
