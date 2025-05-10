@@ -1,6 +1,6 @@
 {
 	"name": "GitSynchro",
-	"version": "0.1",
+	"version": "0.2",
 	"author": [
 		"Seb35"
 	],
@@ -12,24 +12,33 @@
 		"MediaWiki": ">= 1.35"
 	},
 	"config": {
-		"GitSynchroBaseGitDir": "/srv/git/wikis/mediawiki-master"
+		"GitSynchroBaseGitDir": "/var/lib/mediawiki/git",
+		"GitSynchroMode": "one-git-per-page"
 	},
 	"MessagesDirs": {
 		"GitSynchro": [
 			"i18n"
 		]
 	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\GitSynchro\\": "includes/"
+	},
 	"AutoloadClasses": {
 		"GitSynchro": "GitSynchro.php",
 		"ApiGitSynchro": "ApiGitSynchro.php"
 	},
 	"Hooks": {
-		"ArticlePurge": [
-			"GitSynchro::onArticlePurge"
-		],
-		"PageSaveComplete": [
-			"GitSynchro::onPageSaveComplete"
-		]
+		"ArticlePurge": "main",
+		"PageSaveComplete": "main"
+	},
+	"HookHandlers": {
+		"main": {
+			"class": "MediaWiki\\Extension\\GitSynchro\\Hooks",
+			"services": [
+				"MainConfig",
+				"RevisionLookup"
+			]
+		}
 	},
 	"APIModules": {
 		"gitsynchro": "ApiGitSynchro"
