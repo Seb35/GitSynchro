@@ -85,7 +85,7 @@ class GitSynchro {
 
 		# Write Git commits
 		mkdir( '/tmp/igIlsH5h', 0777 );
-		wfShellExec( [ 'git', 'clone', $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), '/tmp/igIlsH5h' ] );
+		wfShellExec( [ 'git', 'clone', '--quiet', $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), '/tmp/igIlsH5h' ] );
 		foreach( array_reverse( $revisions ) as $revision ) {
 
 			$content = $revision->getContent();
@@ -110,7 +110,7 @@ class GitSynchro {
 		}
 		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
 		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
-		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', 'origin', 'master' ] );
+		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', '--quiet', 'origin', 'master' ] );
 		wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid', $revision->getId() ] );
 		wfShellExec( [ 'rm', '-rf', '/tmp/igIlsH5h' ] );
 		return true;
