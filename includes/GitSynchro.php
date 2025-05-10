@@ -63,32 +63,34 @@ class GitSynchro {
 	public function createGitDirectory( Title $title ) {
 
 		$retval = null;
+		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey();
 
 		$this->initBaseDir();
 
 		if( is_dir( $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ) ) {
 			
-			wfShellExec( [ 'git', '--git-dir=' . $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'branch' ], $retval );
+			wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'branch' ], $retval );
 			if( !$retval ) {
 				return;
 			}
-			wfShellExec( [ 'rm', '-rf', $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ] );
+			wfShellExec( [ 'rm', '-rf', $gitDir ] );
 		}
 		
-		mkdir( $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 0750, true );
-		wfShellExec( [ 'git', '--git-dir=' . $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'init', '--bare' ] );
+		mkdir( $this->gitDir, true );
+		wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'init', '--bare' ] );
 	}
 
 	public function populateGitDirectory( Title $title ) {
 
 		$retval = null;
+		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey();
 
 		# Collect revisions
 		$revisions = [];
 		$lastRev = $this->revisionLookup->getRevisionByTitle( $title );
 
 		# Check if an 
-		$lastRecordedRevId = wfShellExec( [ 'git', '--git-dir=' . $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid' ] );
+		$lastRecordedRevId = wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid' ] );
 		while( $lastRev && $lastRev->getId() != $lastRecordedRevId ) {
 
 			$revisions[] = $lastRev;
@@ -101,7 +103,7 @@ class GitSynchro {
 
 		# Write Git commits
 		mkdir( '/tmp/igIlsH5h', 0777 );
-		wfShellExec( [ 'git', 'clone', '--quiet', $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), '/tmp/igIlsH5h' ] );
+		wfShellExec( [ 'git', 'clone', '--quiet', $gitDir, '/tmp/igIlsH5h' ] );
 		foreach( array_reverse( $revisions ) as $revision ) {
 
 			$content = $revision->getContent( SlotRecord::MAIN );
@@ -132,7 +134,7 @@ class GitSynchro {
 		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
 		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
 		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', '--quiet', 'origin', 'master' ] );
-		wfShellExec( [ 'git', '--git-dir=' . $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid', $revision->getId() ] );
+		wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid', $revision->getId() ] );
 		wfShellExec( [ 'rm', '-rf', '/tmp/igIlsH5h' ] );
 
 		return true;
