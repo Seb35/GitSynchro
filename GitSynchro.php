@@ -77,18 +77,15 @@ class GitSynchro {
 
 		# Check if an 
 		$lastRecordedRevId = wfShellExec( [ 'git', '--git-dir=' . $wgGitSynchroBaseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey(), 'config', 'mediawiki.revid' ] );
-		ob_start();
-		var_dump($lastRecordedRevId);
-		$a = ob_get_clean();
-		wfDebugLog( 'gitsynchro', 'last recorded revid = '.$a );
 		while( $lastRev && $lastRev->getId() != $lastRecordedRevId ) {
 
 			$revisions[] = $lastRev;
 			$lastRev = $revisionLookup->getPreviousRevision( $lastRev );
 		}
-		wfDebugLog( 'gitsynchro', 'new revisions = '.count($revisions) );
-		if( count( $revisions ) == 0 )
+		wfDebugLog( 'gitsynchro', 'new revisions = '.count( $revisions ) );
+		if( count( $revisions ) == 0 ) {
 			return true;
+		}
 
 		# Write Git commits
 		mkdir( '/tmp/igIlsH5h', 0777 );
