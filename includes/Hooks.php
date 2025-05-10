@@ -9,6 +9,7 @@ use MediaWiki\Storage\Hook\PageSaveCompleteHook;
 use MediaWiki\Page\WikiPage;
 use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\Shell\CommandFactory;
 use MediaWiki\Storage\EditResult;
 use MediaWiki\User\UserIdentity;
 
@@ -18,14 +19,16 @@ class Hooks implements ArticlePurgeHook, PageSaveCompleteHook {
 
 	public function __construct(
 		Config $config,
-		RevisionLookup $revisionLookup
+		RevisionLookup $revisionLookup,
+		CommandFactory $commandFactory
 	) {
 		$this->gitSynchro = new GitSynchro(
 			new ServiceOptions(
 				GitSynchro::CONSTRUCTOR_OPTIONS,
 				$config
 			),
-			$revisionLookup
+			$revisionLookup,
+			$commandFactory
 		);
 	}
 

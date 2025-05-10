@@ -42,7 +42,8 @@
 			"class": "MediaWiki\\Extension\\GitSynchro\\Hooks",
 			"services": [
 				"MainConfig",
-				"RevisionLookup"
+				"RevisionLookup",
+				"ShellCommandFactory"
 			]
 		}
 	},

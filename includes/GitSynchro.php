@@ -12,7 +12,10 @@ use MediaWiki\Config\ServiceOptions;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\Shell\CommandFactory;
 use MediaWiki\Title\Title;
+use Shellbox\Shellbox;
+use Shellbox\ShellboxError;
 
 class GitSynchro {
 
@@ -27,16 +30,19 @@ class GitSynchro {
 
 	private ServiceOptions $config;
 	private RevisionLookup $revisionLookup;
+	private CommandFactory $commandFactory;
 
 	private string $baseGitDir;
 	private string $mode;
 
 	public function __construct(
 		ServiceOptions $config,
-		RevisionLookup $revisionLookup
+		RevisionLookup $revisionLookup,
+		CommandFactory $commandFactory
 	) {
 		$this->config = $config;
 		$this->revisionLookup = $revisionLookup;
+		$this->commandFactory = $commandFactory;
 
 		$baseGitDir = $config->get( 'GitSynchroBaseGitDir' );
 		if( is_string( $baseGitDir ) ) {
@@ -69,15 +75,15 @@ class GitSynchro {
 
 		if( is_dir( $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ) ) {
 			
-			wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'branch' ], $retval );
+			$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'branch' ], $retval );
 			if( !$retval ) {
 				return;
 			}
-			wfShellExec( [ 'rm', '-rf', $gitDir ] );
+			$this->executeCommand( [ 'rm', '-rf', $gitDir ] );
 		}
 		
 		mkdir( $this->gitDir, true );
-		wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'init', '--bare' ] );
+		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'init', '--bare' ] );
 	}
 
 	public function populateGitDirectory( Title $title ) {
@@ -90,20 +96,20 @@ class GitSynchro {
 		$lastRev = $this->revisionLookup->getRevisionByTitle( $title );
 
 		# Check if an 
-		$lastRecordedRevId = wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid' ] );
+		$lastRecordedRevId = $this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid' ] );
 		while( $lastRev && $lastRev->getId() != $lastRecordedRevId ) {
 
 			$revisions[] = $lastRev;
 			$lastRev = $this->revisionLookup->getPreviousRevision( $lastRev );
 		}
-		wfDebugLog( 'gitsynchro', 'new revisions = '.count( $revisions ) );
+		wfDebugLog( 'gitsynchro', 'new revisions = ' . count( $revisions ) );
 		if( count( $revisions ) == 0 ) {
 			return true;
 		}
 
 		# Write Git commits
 		mkdir( '/tmp/igIlsH5h', 0777 );
-		wfShellExec( [ 'git', 'clone', '--quiet', $gitDir, '/tmp/igIlsH5h' ] );
+		$this->executeCommand( [ 'git', 'clone', '--quiet', $gitDir, '/tmp/igIlsH5h' ] );
 		foreach( array_reverse( $revisions ) as $revision ) {
 
 			$content = $revision->getContent( SlotRecord::MAIN );
@@ -119,24 +125,45 @@ class GitSynchro {
 			$timestamp = wfTimestamp( TS_ISO_8601, $revision->getTimestamp() );
 			$commitMsg = $comment;
 			#$commitMsg = $comment . "\n\nID: " . $revision->getId() . "\nSHA1: " . $revision->getSha1();
-			wfDebugLog( 'gitsynchro', 'add revision = '.$revision->getId() );
+			wfDebugLog( 'gitsynchro', 'add revision = ' . $revision->getId() );
 
 			if( $text ) {
 				file_put_contents( '/tmp/igIlsH5h/' . $title->getPrefixedText(), $text );
-				wfShellExec( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'add', $title->getPrefixedText() ] );
+				$this->executeCommand( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'add', $title->getPrefixedText() ] );
 			} else {
-				wfShellExec( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'rm', $title->getPrefixedText() ] );
+				$this->executeCommand( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'rm', $title->getPrefixedText() ] );
 			}
 			file_put_contents( '/tmp/igIlsH5h/.git/COMMIT_EDITMSG', $commitMsg );
 
-			wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'commit', '--file=/tmp/igIlsH5h/.git/COMMIT_EDITMSG', '--allow-empty-message', '--allow-empty' ], $retval, [ 'GIT_AUTHOR_NAME' => $user, 'GIT_COMMITTER_NAME' => $user, 'GIT_AUTHOR_EMAIL' => $email, 'GIT_COMMITTER_EMAIL' => $email, 'GIT_AUTHOR_DATE' => $timestamp, 'GIT_COMMITTER_DATE' => $timestamp ] );
+			$this->executeCommand( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'commit', '--file=/tmp/igIlsH5h/.git/COMMIT_EDITMSG', '--allow-empty-message', '--allow-empty' ], $retval, [ 'GIT_AUTHOR_NAME' => $user, 'GIT_COMMITTER_NAME' => $user, 'GIT_AUTHOR_EMAIL' => $email, 'GIT_COMMITTER_EMAIL' => $email, 'GIT_AUTHOR_DATE' => $timestamp, 'GIT_COMMITTER_DATE' => $timestamp ] );
 		}
 		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
-		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
-		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', '--quiet', 'origin', 'master' ] );
-		wfShellExec( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid', $revision->getId() ] );
-		wfShellExec( [ 'rm', '-rf', '/tmp/igIlsH5h' ] );
+		$this->executeCommand( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
+		$this->executeCommand( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', '--quiet', 'origin', 'master' ] );
+		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid', $revision->getId() ] );
+		$this->executeCommand( [ 'rm', '-rf', '/tmp/igIlsH5h' ] );
 
 		return true;
+	}
+
+	protected function executeCommand( array $cmd, &$retval = null, $environ = [] ) {
+
+		$cmd = Shellbox::escape( $cmd );
+		$profileMethod = wfGetCaller();
+
+		try {
+			$result = $this->commandFactory
+				->create()
+				->unsafeParams( $cmd )
+				->environment( $environ )
+				->profileMethod( $profileMethod )
+				->execute();
+		} catch( ShellboxError $e ) {
+			$retval = -1;
+			return '';
+		}
+
+		$retval = $result->getExitCode();
+		return $result->getStdout();
 	}
 }
