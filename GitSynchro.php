@@ -24,7 +24,7 @@ class GitSynchro {
 		self::populateGitDirectory( $article->getTitle() );
 	}
 
-	static function onPageContentSaveComplete( $wikiPage, $user, $content, $summary, $isMinor, $isWatch, $section, $flags, $revision, $status, $baseRevId ) {
+	static function onPageSaveComplete( $wikiPage, $user, $summary, $flags, $revisionRecord, $editResult ) {
 
 		global $wgGitSynchroBaseGitDir;
 

@@ -8,6 +8,9 @@
 	"descriptionmsg": "gitsynchro-desc",
 	"license-name": "LGPL-2.0+",
 	"type": "other",
+	"requires": {
+		"MediaWiki": ">= 1.35"
+	},
 	"config": {
 		"GitSynchroBaseGitDir": "/srv/git/wikis/mediawiki-master"
 	},
@@ -24,8 +27,8 @@
 		"ArticlePurge": [
 			"GitSynchro::onArticlePurge"
 		],
-		"PageContentSaveComplete": [
-			"GitSynchro::onPageContentSaveComplete"
+		"PageSaveComplete": [
+			"GitSynchro::onPageSaveComplete"
 		]
 	},
 	"APIModules": {
