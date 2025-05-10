@@ -101,7 +101,7 @@ class GitSynchro {
 			else
 				$text = $content->getNativeData();
 			
-			$comment = $revision->getComment() ? $revision->getComment() : wfMessage( 'gitsynchro-no-comment' )->inContentLanguage()->text();
+			$comment = $revision->getComment() ? $revision->getComment()->text : wfMessage( 'gitsynchro-no-comment' )->inContentLanguage()->text();
 			$user = $revision->getUser();
 			$user = $user ? $user->getName() : '';
 			$email = $user . '@' . preg_replace( '/^(https?:)?\/\//', '', $wgServer );
@@ -110,11 +110,15 @@ class GitSynchro {
 			#$commitMsg = $comment . "\n\nID: " . $revision->getId() . "\nSHA1: " . $revision->getSha1();
 			wfDebugLog( 'gitsynchro', 'add revision = '.$revision->getId() );
 
-			file_put_contents( '/tmp/igIlsH5h/' . $title->getPrefixedText(), $text );
+			if( $text ) {
+				file_put_contents( '/tmp/igIlsH5h/' . $title->getPrefixedText(), $text );
+				wfShellExec( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'add', $title->getPrefixedText() ] );
+			} else {
+				wfShellExec( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'rm', $title->getPrefixedText() ] );
+			}
 			file_put_contents( '/tmp/igIlsH5h/.git/COMMIT_EDITMSG', $commitMsg );
 
-			wfShellExec( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'add', $title->getPrefixedText() ] );
-			wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'commit', '--file=/tmp/igIlsH5h/.git/COMMIT_EDITMSG', '--allow-empty-message' ], $retval, [ 'GIT_AUTHOR_NAME' => $user, 'GIT_COMMITTER_NAME' => $user, 'GIT_AUTHOR_EMAIL' => $email, 'GIT_COMMITTER_EMAIL' => $email, 'GIT_AUTHOR_DATE' => $timestamp, 'GIT_COMMITTER_DATE' => $timestamp ] );
+			wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'commit', '--file=/tmp/igIlsH5h/.git/COMMIT_EDITMSG', '--allow-empty-message', '--allow-empty' ], $retval, [ 'GIT_AUTHOR_NAME' => $user, 'GIT_COMMITTER_NAME' => $user, 'GIT_AUTHOR_EMAIL' => $email, 'GIT_COMMITTER_EMAIL' => $email, 'GIT_AUTHOR_DATE' => $timestamp, 'GIT_COMMITTER_DATE' => $timestamp ] );
 		}
 		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
 		wfShellExec( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
