@@ -12,8 +12,15 @@
 		"MediaWiki": ">= 1.35"
 	},
 	"config": {
-		"GitSynchroBaseGitDir": "/var/lib/mediawiki/git",
-		"GitSynchroMode": "one-git-per-page"
+		"GitSynchroBaseGitDir": {
+			"value": "/var/lib/mediawiki/git",
+			"description": "Directory where Git directories are stored"
+		},
+		"GitSynchroMode": {
+			"value": "one-git-per-page",
+			"description": "Mode of organisation between one Git directory per page or one global Git directory",
+			"public": true
+		}
 	},
 	"MessagesDirs": {
 		"GitSynchro": [
@@ -24,7 +31,6 @@
 		"MediaWiki\\Extension\\GitSynchro\\": "includes/"
 	},
 	"AutoloadClasses": {
-		"GitSynchro": "GitSynchro.php",
 		"ApiGitSynchro": "ApiGitSynchro.php"
 	},
 	"Hooks": {
@@ -43,5 +49,5 @@
 	"APIModules": {
 		"gitsynchro": "ApiGitSynchro"
 	},
-	"manifest_version": 1
+	"manifest_version": 2
 }
