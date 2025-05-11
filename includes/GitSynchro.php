@@ -11,6 +11,7 @@ namespace MediaWiki\Extension\GitSynchro;
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\Content\TextContent;
 use MediaWiki\MainConfigNames;
+use MediaWiki\Page\PageReference;
 use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Shell\CommandFactory;
@@ -73,12 +74,15 @@ class GitSynchro implements LoggerAwareInterface {
 	/**
 	 * Create the Git directory for the given page, if needed
 	 *
-	 * @param Title $title The title we want to create the Git directory
+	 * @param PageReference $title The title we want to create the Git directory
 	 * @return void
 	 * @throws RuntimeException
 	 */
-	public function createGitDirectory( Title $title ) {
+	public function createGitDirectory( PageReference $title ) {
 
+		if( ! ($title instanceof Title ) ) {
+			$title = Title::newFromPageReference( $title );
+		}
 		$titleKey = $title->getPrefixedDBkey();
 		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $titleKey;
 
@@ -99,9 +103,12 @@ class GitSynchro implements LoggerAwareInterface {
 		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'init', '--bare' ] );
 	}
 
-	public function populateGitDirectory( Title $title ) {
+	public function populateGitDirectory( PageReference $title ) {
 
 		$retval = null;
+		if( ! ($title instanceof Title ) ) {
+			$title = Title::newFromPageReference( $title );
+		}
 		$titleKey = $title->getPrefixedDBkey();
 		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $titleKey;
 

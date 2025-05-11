@@ -28,7 +28,8 @@
 		]
 	},
 	"AutoloadNamespaces": {
-		"MediaWiki\\Extension\\GitSynchro\\": "includes/"
+		"MediaWiki\\Extension\\GitSynchro\\": "includes/",
+		"MediaWiki\\Extension\\GitSynchro\\Maintenance\\": "maintenance/"
 	},
 	"AutoloadClasses": {
 		"ApiGitSynchro": "ApiGitSynchro.php"
