@@ -16,11 +16,13 @@ use MediaWiki\Shell\CommandFactory;
 use MediaWiki\Title\Title;
 use Shellbox\Shellbox;
 use Shellbox\ShellboxError;
+use Wikimedia\ScopedCallback;
 
 class GitSynchro {
 
 	public const CONSTRUCTOR_OPTIONS = [
 		MainConfigNames::Server,
+		MainConfigNames::TmpDirectory,
 		'GitSynchroBaseGitDir',
 		'GitSynchroMode',
 	];
@@ -108,16 +110,25 @@ class GitSynchro {
 		}
 
 		# Write Git commits
-		mkdir( '/tmp/igIlsH5h', 0777 );
-		$this->executeCommand( [ 'git', 'clone', '--quiet', $gitDir, '/tmp/igIlsH5h' ] );
+		$tempDir = $this->createTempDir();
+		if( $tempDir === null ) {
+			throw new \RuntimeException();
+		}
+		$tempDirGit = $tempDir . DIRECTORY_SEPARATOR . '.git';
+		$teardown = new ScopedCallback( function () use ( $tempDir ) {
+			wfRecursiveRemoveDir( $tempDir );
+		} );
+
+		$this->executeCommand( [ 'git', 'clone', '--quiet', '--reference', $gitDir, $gitDir, $tempDir ] );
 		foreach( array_reverse( $revisions ) as $revision ) {
 
 			$content = $revision->getContent( SlotRecord::MAIN );
-			if( ! $content instanceof TextContent )
+			if( ! $content instanceof TextContent ) {
 				$text = wfMessage( 'gitsynchro-no-text-content-type' )->inContentLanguage()->text();
-			else
+			} else {
 				$text = $content->getNativeData();
-			
+			}
+
 			$comment = $revision->getComment() ? $revision->getComment()->text : wfMessage( 'gitsynchro-no-comment' )->inContentLanguage()->text();
 			$user = $revision->getUser();
 			$user = $user ? $user->getName() : '';
@@ -128,20 +139,29 @@ class GitSynchro {
 			wfDebugLog( 'gitsynchro', 'add revision = ' . $revision->getId() );
 
 			if( $text ) {
-				file_put_contents( '/tmp/igIlsH5h/' . $title->getPrefixedText(), $text );
-				$this->executeCommand( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'add', $title->getPrefixedText() ] );
+				file_put_contents( $tempDir . DIRECTORY_SEPARATOR . $title->getPrefixedText(), $text );
+				$this->executeCommand( [ 'git', '--work-tree=' . $tempDir, '--git-dir=' . $tempDirGit, 'add', $title->getPrefixedText() ] );
 			} else {
-				$this->executeCommand( [ 'git', '--work-tree=/tmp/igIlsH5h', '--git-dir=/tmp/igIlsH5h/.git', 'rm', $title->getPrefixedText() ] );
+				$this->executeCommand( [ 'git', '--work-tree=' . $tempDir, '--git-dir=' . $tempDirGit, 'rm', '--force', $title->getPrefixedText() ] );
 			}
-			file_put_contents( '/tmp/igIlsH5h/.git/COMMIT_EDITMSG', $commitMsg );
+			file_put_contents( $tempDirGit . DIRECTORY_SEPARATOR . 'COMMIT_EDITMSG', $commitMsg );
 
-			$this->executeCommand( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'commit', '--file=/tmp/igIlsH5h/.git/COMMIT_EDITMSG', '--allow-empty-message', '--allow-empty' ], $retval, [ 'GIT_AUTHOR_NAME' => $user, 'GIT_COMMITTER_NAME' => $user, 'GIT_AUTHOR_EMAIL' => $email, 'GIT_COMMITTER_EMAIL' => $email, 'GIT_AUTHOR_DATE' => $timestamp, 'GIT_COMMITTER_DATE' => $timestamp ] );
+			$this->executeCommand(
+				[ 'git', '--git-dir=' . $tempDirGit, 'commit', '--file=' . $tempDirGit . DIRECTORY_SEPARATOR . 'COMMIT_EDITMSG', '--allow-empty-message', '--allow-empty' ],
+				$retval,
+				[
+					'GIT_AUTHOR_NAME' => $user,
+					'GIT_COMMITTER_NAME' => $user,
+					'GIT_AUTHOR_EMAIL' => $email,
+					'GIT_COMMITTER_EMAIL' => $email,
+					'GIT_AUTHOR_DATE' => $timestamp,
+					'GIT_COMMITTER_DATE' => $timestamp
+				]
+			);
 		}
 		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
-		$this->executeCommand( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'gc' ], $retval, [], [ 'memory' => 614400 ] );
-		$this->executeCommand( [ 'git', '--git-dir=/tmp/igIlsH5h/.git', 'push', '--quiet', 'origin', 'master' ] );
+		$this->executeCommand( [ 'git', '--git-dir=' . $tempDirGit, 'push', '--quiet', 'origin', 'master' ] );
 		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid', $revision->getId() ] );
-		$this->executeCommand( [ 'rm', '-rf', '/tmp/igIlsH5h' ] );
 
 		return true;
 	}
@@ -165,5 +185,24 @@ class GitSynchro {
 
 		$retval = $result->getExitCode();
 		return $result->getStdout();
+	}
+
+	/**
+	 * Create a temporary directory
+	 *
+	 * @return string|null Path of the temporary directory or null in case of error
+	 */
+	protected function createTempDir() {
+
+		$attempts = 5;
+		while( $attempts-- ) {
+			$fuzz = md5( (string)mt_rand() );
+			$path = $this->config->get( MainConfigNames::TmpDirectory ) . DIRECTORY_SEPARATOR . 'GitSynchro-' . $fuzz;
+			if( wfMkdirParents( $path, null, __METHOD__ ) ) {
+				return $path;
+			}
+		}
+
+		return null;
 	}
 }
