@@ -9,6 +9,7 @@
 namespace MediaWiki\Extension\GitSynchro;
 
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Content\TextContent;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\SlotRecord;
@@ -126,7 +127,7 @@ class GitSynchro {
 			if( ! $content instanceof TextContent ) {
 				$text = wfMessage( 'gitsynchro-no-text-content-type' )->inContentLanguage()->text();
 			} else {
-				$text = $content->getNativeData();
+				$text = $content->getText();
 			}
 
 			$comment = $revision->getComment() ? $revision->getComment()->text : wfMessage( 'gitsynchro-no-comment' )->inContentLanguage()->text();
