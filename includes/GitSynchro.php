@@ -15,6 +15,7 @@ use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Shell\CommandFactory;
 use MediaWiki\Title\Title;
+use RuntimeException;
 use Shellbox\Shellbox;
 use Shellbox\ShellboxError;
 use Wikimedia\ScopedCallback;
@@ -62,30 +63,30 @@ class GitSynchro {
 		}
 	}
 
-	public function initBaseDir() {
-
-		if( !is_dir( $this->baseGitDir ) ) {
-			mkdir( $this->baseGitDir, 0750, true );
-		}
-	}
-
+	/**
+	 * Create the Git directory for the given page, if needed
+	 *
+	 * @param Title $title The title we want to create the Git directory
+	 * @return void
+	 * @throws RuntimeException
+	 */
 	public function createGitDirectory( Title $title ) {
 
-		$retval = null;
 		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey();
 
-		$this->initBaseDir();
+		if( is_dir( $gitDir ) ) {
 
-		if( is_dir( $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey() ) ) {
-			
+			$retval = null;
 			$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'branch' ], $retval );
 			if( !$retval ) {
 				return;
 			}
-			$this->executeCommand( [ 'rm', '-rf', $gitDir ] );
+			wfRecursiveRemoveDir( $gitDir );
 		}
-		
-		mkdir( $this->gitDir, true );
+
+		if( !wfMkdirParents( $gitDir, null, __METHOD__ ) ) {
+			throw new RuntimeException();
+		}
 		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'init', '--bare' ] );
 	}
 
@@ -98,7 +99,7 @@ class GitSynchro {
 		$revisions = [];
 		$lastRev = $this->revisionLookup->getRevisionByTitle( $title );
 
-		# Check if an 
+		# Check if there are new revisions to be added in the Git repository
 		$lastRecordedRevId = $this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid' ] );
 		while( $lastRev && $lastRev->getId() != $lastRecordedRevId ) {
 
@@ -106,14 +107,14 @@ class GitSynchro {
 			$lastRev = $this->revisionLookup->getPreviousRevision( $lastRev );
 		}
 		wfDebugLog( 'gitsynchro', 'new revisions = ' . count( $revisions ) );
-		if( count( $revisions ) == 0 ) {
+		if( count( $revisions ) === 0 ) {
 			return true;
 		}
 
 		# Write Git commits
 		$tempDir = $this->createTempDir();
 		if( $tempDir === null ) {
-			throw new \RuntimeException();
+			throw new RuntimeException();
 		}
 		$tempDirGit = $tempDir . DIRECTORY_SEPARATOR . '.git';
 		$teardown = new ScopedCallback( function () use ( $tempDir ) {

@@ -56,7 +56,6 @@ class Hooks implements ArticlePurgeHook, PageSaveCompleteHook {
 		$revisionRecord,
 		$editResult
 	) {
-		$this->gitSynchro->initBaseDir();
 		$this->gitSynchro->createGitDirectory( $wikiPage->getTitle() );
 		$this->gitSynchro->populateGitDirectory( $wikiPage->getTitle() );
 		return true;
@@ -71,7 +70,6 @@ class Hooks implements ArticlePurgeHook, PageSaveCompleteHook {
 	 * @return bool|void True or no return value to continue or false to abort
 	 */
 	public function onArticlePurge( $wikiPage ) {
-		$this->gitSynchro->initBaseDir();
 		$this->gitSynchro->createGitDirectory( $wikiPage->getTitle() );
 		$this->gitSynchro->populateGitDirectory( $wikiPage->getTitle() );
 		return true;
