@@ -158,11 +158,16 @@ class GitSynchro implements LoggerAwareInterface {
 			#$commitMsg = $comment . "\n\nID: " . $revision->getId() . "\nSHA1: " . $revision->getSha1();
 			$this->logger->debug( 'Add revision ' . $revision->getId() . ' in Git repository', [ 'page_title' => $titleKey ] );
 
+			$cleanTitle = $title->getPrefixedText();
+			$lastSlash = strrpos( $cleanTitle, '/' );
+			if( $lastSlash !== false ) {
+				wfMkdirParents( $tempDir . DIRECTORY_SEPARATOR . substr( $cleanTitle, 0, $lastSlash ), null, __METHOD__ );
+			}
 			if( $text ) {
-				file_put_contents( $tempDir . DIRECTORY_SEPARATOR . $title->getPrefixedText(), $text );
-				$this->executeCommand( [ 'git', '--work-tree=' . $tempDir, '--git-dir=' . $tempDirGit, 'add', $title->getPrefixedText() ] );
+				file_put_contents( $tempDir . DIRECTORY_SEPARATOR . $cleanTitle, $text );
+				$this->executeCommand( [ 'git', '--work-tree=' . $tempDir, '--git-dir=' . $tempDirGit, 'add', $cleanTitle ] );
 			} else {
-				$this->executeCommand( [ 'git', '--work-tree=' . $tempDir, '--git-dir=' . $tempDirGit, 'rm', '--force', $title->getPrefixedText() ] );
+				$this->executeCommand( [ 'git', '--work-tree=' . $tempDir, '--git-dir=' . $tempDirGit, 'rm', '--force', $cleanTitle ] );
 			}
 			file_put_contents( $tempDirGit . DIRECTORY_SEPARATOR . 'COMMIT_EDITMSG', $commitMsg );
 
