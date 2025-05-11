@@ -4,6 +4,7 @@ namespace MediaWiki\Extension\GitSynchro;
 
 use MediaWiki\Config\Config;
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\Page\Hook\ArticlePurgeHook;
 use MediaWiki\Storage\Hook\PageSaveCompleteHook;
 use MediaWiki\Page\WikiPage;
@@ -27,6 +28,7 @@ class Hooks implements ArticlePurgeHook, PageSaveCompleteHook {
 				GitSynchro::CONSTRUCTOR_OPTIONS,
 				$config
 			),
+			LoggerFactory::getInstance( 'gitsynchro' ),
 			$revisionLookup,
 			$commandFactory
 		);

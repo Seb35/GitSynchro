@@ -15,12 +15,17 @@ use MediaWiki\Revision\RevisionLookup;
 use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Shell\CommandFactory;
 use MediaWiki\Title\Title;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Shellbox\Shellbox;
 use Shellbox\ShellboxError;
 use Wikimedia\ScopedCallback;
 
-class GitSynchro {
+class GitSynchro implements LoggerAwareInterface {
+
+	use LoggerAwareTrait;
 
 	public const CONSTRUCTOR_OPTIONS = [
 		MainConfigNames::Server,
@@ -41,10 +46,12 @@ class GitSynchro {
 
 	public function __construct(
 		ServiceOptions $config,
+		LoggerInterface $logger,
 		RevisionLookup $revisionLookup,
 		CommandFactory $commandFactory
 	) {
 		$this->config = $config;
+		$this->logger = $logger;
 		$this->revisionLookup = $revisionLookup;
 		$this->commandFactory = $commandFactory;
 
@@ -72,7 +79,8 @@ class GitSynchro {
 	 */
 	public function createGitDirectory( Title $title ) {
 
-		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey();
+		$titleKey = $title->getPrefixedDBkey();
+		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $titleKey;
 
 		if( is_dir( $gitDir ) ) {
 
@@ -87,13 +95,15 @@ class GitSynchro {
 		if( !wfMkdirParents( $gitDir, null, __METHOD__ ) ) {
 			throw new RuntimeException();
 		}
+		$this->logger->info( 'Create new Git repository', [ 'page_title' => $titleKey ] );
 		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'init', '--bare' ] );
 	}
 
 	public function populateGitDirectory( Title $title ) {
 
 		$retval = null;
-		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $title->getPrefixedDBkey();
+		$titleKey = $title->getPrefixedDBkey();
+		$gitDir = $this->baseGitDir . DIRECTORY_SEPARATOR . $titleKey;
 
 		# Collect revisions
 		$revisions = [];
@@ -106,12 +116,13 @@ class GitSynchro {
 			$revisions[] = $lastRev;
 			$lastRev = $this->revisionLookup->getPreviousRevision( $lastRev );
 		}
-		wfDebugLog( 'gitsynchro', 'new revisions = ' . count( $revisions ) );
+		$this->logger->debug( 'New revisions = ' . count( $revisions ), [ 'page_title' => $titleKey ] );
 		if( count( $revisions ) === 0 ) {
 			return true;
 		}
 
 		# Write Git commits
+		$this->logger->info( 'Update Git repository', [ 'page_title' => $titleKey ] );
 		$tempDir = $this->createTempDir();
 		if( $tempDir === null ) {
 			throw new RuntimeException();
@@ -138,7 +149,7 @@ class GitSynchro {
 			$timestamp = wfTimestamp( TS_ISO_8601, $revision->getTimestamp() );
 			$commitMsg = $comment;
 			#$commitMsg = $comment . "\n\nID: " . $revision->getId() . "\nSHA1: " . $revision->getSha1();
-			wfDebugLog( 'gitsynchro', 'add revision = ' . $revision->getId() );
+			$this->logger->debug( 'Add revision ' . $revision->getId() . ' in Git repository', [ 'page_title' => $titleKey ] );
 
 			if( $text ) {
 				file_put_contents( $tempDir . DIRECTORY_SEPARATOR . $title->getPrefixedText(), $text );
@@ -161,9 +172,10 @@ class GitSynchro {
 				]
 			);
 		}
-		wfDebugLog( 'gitsynchro', 'last added revid = '.$revision->getId() );
+		$this->logger->debug( 'Last added revision in Git directory = ' . $revision->getId(), [ 'page_title' => $titleKey ] );
 		$this->executeCommand( [ 'git', '--git-dir=' . $tempDirGit, 'push', '--quiet', 'origin', 'master' ] );
 		$this->executeCommand( [ 'git', '--git-dir=' . $gitDir, 'config', 'mediawiki.revid', $revision->getId() ] );
+		$this->logger->info( 'Added ' . count( $revisions ) . ' revisions in Git repository', [ 'page_title' => $titleKey ] );
 
 		return true;
 	}
